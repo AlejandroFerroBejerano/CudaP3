@@ -3,9 +3,8 @@
 #include <math.h>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include "image.h"
 
-#include <image.h>  
-#define Tamaño IMAGE_WIDTH*IMAGE_HEIGTH;
 #define RangoColores 256
 #define Nbloques 1
 #define NThreads 256
@@ -29,25 +28,25 @@ __global__ void histograma_kernel(unsigned char *buffer, long size, unsigned int
 	/*Esperamos a que todos lo hilos hayan terminado */
 	__syncthreads();
 	/*Copiamos nuestro histograma en memoria compartida*/
-	atomicAdd( &(hist[threadIdx.x]), temp[treadIdx.x]);
+	atomicAdd( &(hist[threadIdx.x]), temp[threadIdx.x]);
 }
 
 int main(void){
-	unsigned char *image =(unsigned char*)image;
+	unsigned char *img =(unsigned char*)image;
 	unsigned int histograma[RangoColores];
 	unsigned char *dev_image;
 	unsigned int *dev_histograma;
 
-	long = tamaño IMAGE_WIDTH*IMAGE_HEIGTH;
+	unsigned long size = IMAGEls_WIDTH * IMAGE_HEIGHT;
 
-	cudaMalloc((void**) &dev_image, tamaño);
+	cudaMalloc((void**) &dev_image, size);
 	cudaMalloc((void**) &dev_histograma, RangoColores * sizeof(long));
 
-	cudaMemcpy(dev_image, image, Tamaño, cudaMemcpyHostToDevice);
-	histograma_kernel<<<Nbloques,NThreads>>>(dev_image,tamaño,dev_histograma);
+	cudaMemcpy(dev_image, img, size, cudaMemcpyHostToDevice);
+	histograma_kernel<<<Nbloques,NThreads>>>(dev_image,size,dev_histograma);
 	cudaMemcpy(histograma, &dev_histograma, RangoColores * sizeof(int), cudaMemcpyDeviceToHost);
 
-	for (int i=0; i<tamaño; i++){
-		printf("%d\t"histograma[i]);	
+	for (int i=0; i<size; i++){
+		printf("%d\t", histograma[i]);	
 	}
 }
