@@ -1,18 +1,18 @@
-#include <stdlib.h>
+/*autor: Alejandro Ferro Bejerano*/
+
 #include <stdio.h>
-#include <math.h>
-#include <time.h>
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
 #include "image.h"
 
+#define TRUE 1
+#define FALSE 0
+#define SIZE IMAGE_WIDTH * IMAGE_HEIGHT
 #define RangoColores 256
-#define Nbloques 1
+#define Nbloques 1 
 #define NThreads 256
 
-__global__ void histograma_kernel(unsigned char *buffer, long size, unsigned int *hist){
+__global__ void histograma_kernel(unsigned char *img, unsigned int *hist){
 	
-		/*Buffer de histograma temporal en memoria compartida*/	
+	/*Inicializamos histograma temporal en memoria compartida a 0*/	
 	__shared__ unsigned int temp[RangoColores];
 	temp[threadIdx.x]=0;
 	__syncthreads();
@@ -20,19 +20,21 @@ __global__ void histograma_kernel(unsigned char *buffer, long size, unsigned int
 	int posicion = threadIdx.x + blockIdx.x * blockDim.x;
 	int desplazamiento = blockDim.x * gridDim.x;
 
-	while(posicion < size){
+	while(posicion < SIZE){
 		/*Bloquea la variable de memoria compartida para que no escriban en la misma */		
-		atomicAdd(&temp[buffer[posicion]], 1);
+		atomicAdd(&temp[img[posicion]], 1);
 		posicion +=desplazamiento;
 	}
 	
 	/*Esperamos a que todos lo hilos hayan terminado */
 	__syncthreads();
-	/*Copiamos nuestro histograma en memoria compartida*/
+	/*Copiamos de nuestra memoria compartida a nuestro histograma*/
 	atomicAdd( &(hist[threadIdx.x]), temp[threadIdx.x]);
 }
 
 int main(void){
+
+	int hist_correcto = FALSE;
 	/*Cargamos la imagen*/
 	unsigned char *img =(unsigned char*)image;
 
@@ -41,25 +43,31 @@ int main(void){
 	unsigned char *dev_image;
 	unsigned int *dev_histograma;
 
-	/*Calculamos la longitud máxima en memoria que ocupa la imagen*/
-	long size = IMAGE_WIDTH * IMAGE_HEIGHT;
-	
+
 	/*Reservamos memoria e inicializamos a 0 
 	todo el rango donde se almacenara el histograma*/
-	cudaMalloc((void**) &dev_image, size);
+	cudaMalloc((void**) &dev_image, SIZE);
 	cudaMalloc((void**) &dev_histograma, RangoColores * sizeof(int));
 	cudaMemset( dev_histograma, 0,RangoColores * sizeof( int ) );
 
-	cudaMemcpy(dev_image, img, size, cudaMemcpyHostToDevice);
-	histograma_kernel<<<Nbloques,NThreads>>>(dev_image,size,dev_histograma);
+	cudaMemcpy(dev_image, img, SIZE, cudaMemcpyHostToDevice);
+	histograma_kernel<<<Nbloques,NThreads>>>(dev_image,dev_histograma);
 	cudaMemcpy(histograma, dev_histograma, RangoColores * sizeof(int), cudaMemcpyDeviceToHost);
 	
-	/*Comprobamos uqe el cálculo se ha hecho correctamente haciendo
+		/*Comprobamos uqe el cálculo se ha hecho correctamente haciendo
 	la operación inversa con la CPU*/
-	for (int i=0; i<size; i++) histograma[img[i]]--;
+	for (int i=0; i<SIZE; i++) histograma[img[i]]--;
 	for(int i=0; i< RangoColores; i++){
-		if (histograma[i] !=0) printf("Error en %d  Valor %d\n ", i, histograma[i]);
+		if (histograma[i] !=0){
+			printf("\nError: El cálculo del histograma, no corresponde con el generado por la CPU\n\n");
+			hist_correcto = FALSE;
+			exit(-1);
+		}else{
+			hist_correcto = TRUE;
+		}
 	}
+	if(hist_correcto == TRUE) printf("Histograma generado correctamente, ;-)\n\n");
+
 	
 	cudaFree(dev_image);
 	cudaFree(dev_histograma);

@@ -8,4 +8,4 @@ histograma_multiblocks: histograma_multiblocks.cu
 	    		nvcc -arch=sm_20 $ -o $@ $^
 
 clean:
-	$(RM) *~ *.o histograma
+	$(RM) *~ *.o histograma histograma_multiblocks
